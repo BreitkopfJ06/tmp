@@ -1,0 +1,71 @@
+    static Field[][] initOtherField()
+    {
+        Field[][] tmpField = new Field[10][10];
+        for(int i = 0; i < 10; i++)
+        {
+            for(int j = 0; j < 10; j++)
+            {
+                tmpField[i][j] = Field.WATER;
+            }
+        }
+
+        System.out.println("feld mit wasser gebaut!");
+
+        for(int k = 0; k < 4; k++)
+        {
+            Coordinate tmpStart = new Coordinate(0, 0);
+            Coordinate tmpEnd = new Coordinate(9,9);
+
+            System.out.println("neue koordinaten erstellt");
+
+            if(k == 0)
+            {
+                int counter = 0;
+                while(!validPosition(tmpStart, tmpEnd, 5, tmpField))
+                {
+
+                    tmpStart = getRandomCoordinate();
+                    tmpEnd = getRandomEndCoordinate(tmpStart, 5);
+                    counter++;
+                    System.out.println(counter);
+                }
+                placeShip(tmpStart, tmpEnd, tmpField);
+                System.out.println("5er Schiff gebaut");
+
+            }
+            else if(k == 1)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 4, tmpField))
+                {
+                    tmpStart = getRandomCoordinate();
+                    tmpEnd = getRandomEndCoordinate(tmpStart, 4);
+                }
+                placeShip(tmpStart, tmpEnd, tmpField);
+                System.out.println("4er Schiff gebaut");
+            }
+            else if(k == 2)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 3, tmpField))
+                {
+                    tmpStart = getRandomCoordinate();
+                    tmpEnd = getRandomEndCoordinate(tmpStart, 3);
+                }
+                placeShip(tmpStart, tmpEnd, tmpField);
+                System.out.println("3er Schiff gebaut");
+            }
+            else if(k == 3)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 2, tmpField))
+                {
+                    tmpStart = getRandomCoordinate();
+                    tmpEnd = getRandomEndCoordinate(tmpStart, 2);
+                }
+                placeShip(tmpStart, tmpEnd, tmpField);
+                System.out.println("2er Schiff gebaut");
+            }
+        }
+
+        System.out.println("jedes Schiff gebaut");
+
+        return tmpField;
+    }
