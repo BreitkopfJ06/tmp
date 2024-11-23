@@ -1,0 +1,657 @@
+import com.sun.tools.javac.Main;
+import jdk.jshell.execution.Util;
+
+import java.io.IOException;
+
+public class BattleShip {
+
+    public static void main(String[] args)
+    {
+        Field[][] otherField = initOtherField();
+        System.out.println("Test!");
+        Field[][] ownField = initOwnField(otherField);
+
+        if(!allHit(ownField) || !allHit(otherField))
+        {
+            turn(ownField, otherField);
+        }
+        outputWinner(ownField, otherField);
+
+    }
+
+    static final int SIZE = 10;
+
+    static final String ENTER_SHIP_COORDINATE_PROMPT = "Geben Sie die %skoordinaten für ein Schiff der Länge %d ein: ";
+
+    static int distance(final Coordinate start, final Coordinate end) {
+        return Math.abs(start.column() - end.column()) + Math.abs(start.row() - end.row());
+    }
+
+    static Coordinate getRandomCoordinate() {
+        return new Coordinate(Utility.getRandomInt(BattleShip.SIZE), Utility.getRandomInt(BattleShip.SIZE));
+    }
+
+    static boolean onOneLine(final Coordinate start, final Coordinate end) {
+        return start.column() == end.column() || start.row() == end.row();
+    }
+
+    static void showSeparatorLine() {
+        System.out.println("   +-+-+-+-+-+-+-+-+-+-+      +-+-+-+-+-+-+-+-+-+-+");
+    }
+
+    static int getMaxSurroundingColumn(final Coordinate start, final Coordinate end) {
+        return Math.min(BattleShip.SIZE - 1, Math.max(start.column(), end.column()) + 1);
+    }
+
+    static int getMaxSurroundingRow(final Coordinate start, final Coordinate end) {
+        return Math.min(BattleShip.SIZE - 1, Math.max(start.row(), end.row()) + 1);
+    }
+
+    static int getMinSurroundingColumn(final Coordinate start, final Coordinate end) {
+        return Math.max(0, Math.min(start.column(), end.column()) - 1);
+    }
+
+    static int getMinSurroundingRow(final Coordinate start, final Coordinate end) {
+        return Math.max(0, Math.min(start.row(), end.row()) - 1);
+    }
+
+    static Coordinate toCoordinate(final String input) {
+        return new Coordinate(input.toUpperCase().charAt(0) - 65, Integer.parseInt(input.substring(1)) - 1);
+    }
+
+    static boolean isValidCoordinate(final String input) {
+        return input.matches("[A-Ja-j]([1-9]|10)");
+    }
+
+    static String getStartCoordinatePrompt(final int length) {
+        return String.format(BattleShip.ENTER_SHIP_COORDINATE_PROMPT, "Start", length);
+    }
+
+    static String getEndCoordinatePrompt(final int length) {
+        return String.format(BattleShip.ENTER_SHIP_COORDINATE_PROMPT, "End", length);
+    }
+
+    static void showRowNumber(final int row) {
+        if (row < 9) {
+            System.out.println(" ");
+        }
+        System.out.println(row + 1);
+    }
+
+    static Coordinate getRandomEndCoordinate(final Coordinate start, final int distance) {
+        int choices = 0;
+        if (start.column() >= distance) {
+            choices++;
+        }
+        if (start.column() < BattleShip.SIZE - distance) {
+            choices++;
+        }
+        if (start.row() >= distance) {
+            choices++;
+        }
+        if (start.row() < BattleShip.SIZE - distance) {
+            choices++;
+        }
+        int skip = Utility.getRandomInt(choices);
+        if (start.column() >= distance) {
+            skip--;
+            if (skip < 0) {
+                return new Coordinate(start.column() - distance, start.row());
+            }
+        }
+        if (start.column() < BattleShip.SIZE - distance) {
+            skip--;
+            if (skip < 0) {
+                return new Coordinate(start.column() + distance, start.row());
+            }
+        }
+        if (start.row() >= distance) {
+            skip--;
+            if (skip < 0) {
+                return new Coordinate(start.column(), start.row() - distance);
+            }
+        }
+        return new Coordinate(start.column(), start.row() + distance);
+    }
+
+    static void showField(final Field field, final boolean showShips) {
+        String fieldContent = "";
+        switch (field) {
+            case Field.SHIP:
+                if (showShips) {
+                    fieldContent = "o";
+                } else {
+                    fieldContent = " ";
+                }
+                break;
+            case Field.SHIP_HIT:
+                fieldContent = "*";
+                break;
+            case Field.WATER:
+                fieldContent = " ";
+                break;
+            case Field.WATER_HIT:
+                fieldContent = "x";
+                break;
+        }
+        System.out.print(fieldContent);
+    }
+
+    static int max(final int[] array) {
+        int maxElement = Integer.MIN_VALUE;
+        if (array.length > 1) {
+            for (int i = 0; i < array.length; i++) {
+                if (array[i] > maxElement) {
+                    maxElement = array[i];
+                }
+            }
+        } else {
+            throw new IllegalArgumentException();
+        }
+        return maxElement;
+    }
+
+    static void placeShip(final Coordinate start, final Coordinate end, final Field[][] field) {
+        int[] startResult = {start.column(), start.row(), end.column(), end.row()};
+        if (start.row() < end.row()) {
+            for (int i = 0; i < end.row() - start.row(); i++) {
+                field[startResult[0]][startResult[1] + i] = Field.SHIP;
+            }
+        } else if (start.row() > end.row()) {
+            for (int i = 0; i < start.row() - end.row(); i++) {
+                field[startResult[0]][startResult[1] - i] = Field.SHIP;
+            }
+        } else if (start.column() < end.column()) {
+            for (int i = 0; i < end.column() - start.column(); i++) {
+                field[startResult[0 + i]][startResult[1]] = Field.SHIP;
+            }
+        } else {
+            for (int i = 0; i < start.column() - end.column(); i++) {
+                field[startResult[0 - i]][startResult[0]] = Field.SHIP;
+            }
+        }
+    }
+
+    static void showRow(final int row, final Field[][] ownField, final Field[][] otherField) {
+        if (row < 10) {
+            System.out.print(" " + row + " " + "|");
+            for (int i = 0; i < 10; i++) {
+                showField(ownField[row][i], true);
+                System.out.print("|");
+            }
+            System.out.print("      |");
+            for (int j = 0; j < 10; j++) {
+                showField(otherField[row][j], false);
+                System.out.print("|");
+            }
+            System.out.println("");
+
+        } else {
+            System.out.print(row + " " + "|");
+            for (int i = 0; i < 10; i++) {
+                showField(ownField[row][i], true);
+                System.out.print("|");
+            }
+            System.out.print("   ");
+            for (int j = 0; j < 10; j++) {
+                showField(otherField[row][j], false);
+                System.out.print("|");
+            }
+        }
+    }
+
+    static void showFields(final Field[][] ownField, final Field[][] otherField) {
+        String spaltenBuchstaben = "A B C D E F G H I J";
+        System.out.println("    " + spaltenBuchstaben + "        " + spaltenBuchstaben);
+        showSeparatorLine();
+        for (int i = 0; i < 10; i++) {
+            showRow(i, ownField, otherField);
+            showSeparatorLine();
+        }
+        System.out.println("");
+    }
+
+    static boolean shipSunk(final Coordinate shot, final Field[][] field) {
+        boolean shipHit = false;
+        for (int i = 0; i < 5; i++) {
+            if (field[shot.column() + i][shot.row()] == Field.SHIP) {
+                return false;
+            } else if (field[shot.column() + i][shot.row()] == Field.WATER || field[shot.column() + i][shot.row()] == Field.WATER_HIT) {
+                i = 5;
+            } else if (field[shot.column() + i][shot.row()] == Field.SHIP_HIT) {
+                shipHit = true;
+            }
+        }
+        for (int j = 0; j < 5; j++) {
+            if (field[shot.column() - j][shot.row()] == Field.SHIP) {
+                return false;
+            } else if (field[shot.column() - j][shot.row()] == Field.WATER || field[shot.column() - j][shot.row()] == Field.WATER_HIT) {
+                j = 5;
+            } else if (field[shot.column() - j][shot.row()] == Field.SHIP_HIT) {
+                if (shipHit) {
+                    return true;
+                }
+            }
+
+            for (int k = 0; k < 5; k++) {
+                if (field[shot.column()][shot.row() + k] == Field.SHIP) {
+                    return false;
+                } else if (field[shot.column()][shot.row() + k] == Field.WATER || field[shot.column()][shot.row() + k] == Field.WATER_HIT) {
+                    k = 5;
+                } else if (field[shot.column()][shot.row() + k] == Field.SHIP_HIT) {
+                    shipHit = true;
+                }
+            }
+            for (int l = 0; l < 5; l++) {
+                if (field[shot.column()][shot.row() - l] == Field.SHIP) {
+                    return false;
+                } else if (field[shot.column()][shot.row() - l] == Field.WATER || field[shot.column()][shot.row() - l] == Field.WATER_HIT) {
+                    l = 5;
+                } else if (field[shot.column()][shot.row() - l] == Field.SHIP_HIT) {
+                    if (shipHit) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    static void setAllFree(final Field[][] field) {
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                field[i][j] = Field.FREE;
+            }
+        }
+    }
+
+    static int countHits(final Field[][] field) {
+        int hitShips = 0;
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (field[i][j] == Field.SHIP_HIT) {
+                    hitShips++;
+                }
+            }
+        }
+        return hitShips;
+    }
+
+    static void fillWaterHits(final Coordinate shot, final Field[][] field) {
+        int columnMin = shot.column();
+        while (columnMin > 0 && field[columnMin][shot.row()] == Field.SHIP_HIT) {
+            columnMin--;
+        }
+        int columnMax = shot.column();
+        while (columnMax < BattleShip.SIZE - 1 && field[columnMax][shot.row()] == Field.SHIP_HIT) {
+            columnMax++;
+        }
+        int rowMin = shot.row();
+        while (rowMin > 0 && field[shot.column()][rowMin] == Field.SHIP_HIT) {
+            rowMin--;
+        }
+        int rowMax = shot.row();
+        while (rowMax < BattleShip.SIZE - 1 && field[shot.column()][rowMax] == Field.SHIP_HIT) {
+            rowMax++;
+        }
+        for (int column = columnMin; column <= columnMax; column++) {
+            for (int row = rowMin; row <= rowMax; row++) {
+                if (field[column][row] == Field.WATER) {
+                    field[column][row] = Field.WATER_HIT;
+                }
+            }
+        }
+    }
+
+    static boolean noConflict(final Coordinate start, final Coordinate end, final Field[][] field) {
+        for (
+                int column = BattleShip.getMinSurroundingColumn(start, end);
+                column <= BattleShip.getMaxSurroundingColumn(start, end);
+                column++
+        ) {
+            for (
+                    int row = BattleShip.getMinSurroundingRow(start, end);
+                    row <= BattleShip.getMaxSurroundingRow(start, end);
+                    row++
+            ) {
+                if (field[column][row] != Field.WATER) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    static Coordinate readCoordinate(final String prompt) {
+        Coordinate result = new Coordinate(Integer.MIN_VALUE, Integer.MIN_VALUE);
+
+        try {
+            while (result.column() == Integer.MIN_VALUE) {
+                System.out.println(prompt);
+                if (Utility.readStringFromConsole() != "exit") {
+                    String tmp = Utility.readStringFromConsole();
+                    if (tmp.matches("[0-9][0-9]")) {
+                        int tmpInt[] = new int[2];
+                        tmpInt[0] = Character.getNumericValue(tmp.charAt(0));
+                        tmpInt[1] = Character.getNumericValue(tmp.charAt(1));
+                        Coordinate tmpCoordinate = new Coordinate(tmpInt[0], tmpInt[1]);
+                        result = tmpCoordinate;
+                    }
+                } else if (Utility.readStringFromConsole() == "exit") {
+                    throw new IndexOutOfBoundsException();
+                }
+            }
+        } catch (IOException e) {
+            System.out.println("Fehler! Bitte eingabe wiederholen.");
+        }
+        return result;
+    }
+
+    static Coordinate getRandomUnshotCoordinate(final Field[][] field) {
+        int unshotFields = 0;
+        for (int i = 0; i < 10; i++) {
+            for (int j = 0; j < 10; j++) {
+                if (field[i][j] == Field.WATER) {
+                    unshotFields++;
+                }
+            }
+        }
+        try {
+            if (unshotFields > 0) {
+                Coordinate tmp = getRandomCoordinate();
+                while (field[tmp.column()][tmp.row()] != Field.WATER) {
+                    tmp = getRandomCoordinate();
+                }
+                return tmp;
+            }
+        }
+        catch (IllegalStateException e)
+        {
+            System.out.println("Keine freie Coordinate vorhanden");
+        }
+        return null;
+    }
+    static Coordinate readEndCoordinate(final int length)
+    {
+        Coordinate result = new Coordinate(Integer.MIN_VALUE, Integer.MIN_VALUE);
+        System.out.println("Enter a end Coordinate for a ship of the length: " + length);
+        try {
+            String tmp = Utility.readStringFromConsole();
+            int tmpInt[] = new int[2];
+            tmpInt[0] = Character.getNumericValue(tmp.charAt(0));
+            tmpInt[1] = Character.getNumericValue(tmp.charAt(1));
+            Coordinate tmpCoordinate = new Coordinate(tmpInt[0], tmpInt[1]);
+            result = tmpCoordinate;
+        }
+        catch (IOException e)
+        {
+            System.out.println("Fehler.");
+        }
+        return result;
+    }
+    static Coordinate readStartCoordinate(final int length)
+    {
+        Coordinate result = new Coordinate(Integer.MIN_VALUE, Integer.MIN_VALUE);
+        System.out.println("Enter a start Coordinate for a ship of the length: " + length);
+        try {
+            String tmp = Utility.readStringFromConsole();
+            int tmpInt[] = new int[2];
+
+            tmpInt[0] = Character.getNumericValue(tmp.charAt(0));
+            tmpInt[1] = Character.getNumericValue(tmp.charAt(0));
+            Coordinate tmpCoordinate = new Coordinate(tmpInt[0], tmpInt[1]);
+            result = tmpCoordinate;
+        }
+        catch (IOException e)
+        {
+            System.out.println("Fehler.");
+        }
+        return result;
+    }
+    static boolean allHit(final Field[][] field)
+    {
+        int ALL_HIT = 14;
+        int tmpHit = Integer.MIN_VALUE;
+        for(int i = 0; i < 10; i++)
+        {
+            for(int j = 0; j < 10; j++)
+            {
+                if(field[i][j] == Field.SHIP_HIT)
+                {
+                    tmpHit++;
+                }
+            }
+        }
+        return tmpHit == ALL_HIT;
+    }
+    static boolean endCondition(final Field[][] ownField, final Field[][] otherField)
+    {
+        return allHit(ownField) || allHit(otherField);
+    }
+    static boolean validPosition(final Coordinate start, final Coordinate end, final int length, final Field[][] field)
+    {
+        boolean noShip = true;
+
+        if(start.row() < end.row())
+        {
+            if(start.row() - 1 == -1 || field[start.column()][start.row() - 1] == Field.WATER) {
+                for (int i = 0; i < length; i++)
+                {
+                    if(field[start.column()][start.row() + i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() + i + 1 != 10 || field[start.column()][start.row() + i + 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() + 1 != 10 || field[start.column() + 1][start.row() + i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() - 1 != -1 || field[start.column() - 1][start.row() + i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                }
+            }
+            else
+            {
+                noShip = false;
+            }
+        }
+        else if (start.row() > end.row())
+        {
+            if(start.row() + 1 == 10 || field[start.column()][start.row() + 1] == Field.WATER) {
+                for (int i = 0; i < length; i++)
+                {
+                    if(field[start.column()][start.row() - i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() - i - 1 != -10 || field[start.column()][start.row() - i - 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() + 1 != 10 || field[start.column() + 1][start.row() - i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() - 1 != -1 || field[start.column() - 1][start.row() - i] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                }
+            }
+            else
+            {
+                noShip = false;
+            }
+        }
+        else if (start.column() < end.column())
+        {
+            if(start.column() - 1 == -1 || field[start.column() - 1][start.row()] == Field.WATER) {
+                for (int i = 0; i < length; i++)
+                {
+                    if(field[start.column() + i][start.row()] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() + i + 1 != 10 || field[start.column() + i + 1][start.row()] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() + 1 != 10 || field[start.column() + i][start.row() + 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() - 1 != -1 || field[start.column() + i][start.row() - 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                }
+            }
+            else
+            {
+                noShip = false;
+            }
+        }
+        else if (start.column() > end.column())
+        {
+            if(start.column() + 1 == 10 || field[start.column() + 1][start.row()] == Field.WATER) {
+                for (int i = 0; i < length; i++)
+                {
+                    if(field[start.column() - i][start.row()] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.column() - i - 1 != -1 || field[start.column() - i - 1][start.row()] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() + 1 != 10 || field[start.column() - i][start.row() + 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                    else if(start.row() - 1 != -1 || field[start.column() - i][start.row() + 1] != Field.WATER)
+                    {
+                        noShip = false;
+                    }
+                }
+            }
+            else
+            {
+                noShip = false;
+            }
+        }
+
+        return noShip;
+    }
+    static void shot(final Coordinate shot, final Field[][] field)
+    {
+        if(field[shot.column()][shot.row()] == Field.WATER)
+        {
+            field[shot.column()][shot.row()] = Field.WATER_HIT;
+        }
+        else if(field[shot.column()][shot.row()] == Field.SHIP)
+        {
+            field[shot.column()][shot.row()] = Field.SHIP_HIT;
+            if(shipSunk(shot, field))
+            {
+                fillWaterHits(shot, field);
+            }
+        }
+    }
+    static void turn(final Field[][] ownField, final Field[][] otherField)
+    {
+        showFields(ownField, otherField);
+        shot(readCoordinate("Please enter a shot Coordinate"), otherField);
+        shot(getRandomUnshotCoordinate(ownField), ownField);
+    }
+    static void outputWinner(final Field[][] ownField, final Field[][] otherField)
+    {
+        showFields(ownField, otherField);
+        if(allHit(ownField))
+        {
+            System.out.println("Der Computer hat gewonnen!");
+        }
+        else if(allHit(otherField))
+        {
+            System.out.println("Du hast gewonnen!");
+        }
+    }
+    static Field[][] initOtherField()
+    {
+        Field[][] tmpfield = new Field[10][10];
+
+        for(int i = 0; i < 10; i++)
+        {
+            for(int j = 0; j < 10; j++)
+            {
+                tmpfield[i][j] = Field.WATER;
+            }
+        }
+        //Zweier Schiff
+        tmpfield[1][1] = Field.SHIP;
+        tmpfield[1][2] = Field.SHIP;
+
+        //dreier Schiff
+        tmpfield[7][2] = Field.SHIP;
+        tmpfield[8][2] = Field.SHIP;
+        tmpfield[9][2] = Field.SHIP;
+
+        //vierer Schiff
+        tmpfield[3][6] = Field.SHIP;
+        tmpfield[4][6] = Field.SHIP;
+        tmpfield[5][6] = Field.SHIP;
+        tmpfield[6][6] = Field.SHIP;
+
+        //fünfer Schiff
+        tmpfield[2][3] = Field.SHIP;
+        tmpfield[2][4] = Field.SHIP;
+        tmpfield[2][5] = Field.SHIP;
+        tmpfield[2][6] = Field.SHIP;
+        tmpfield[2][7] = Field.SHIP;
+
+
+        return tmpfield;
+    }
+    static Field[][] initOwnField(final Field[][] otherField)
+    {
+        Field[][] tmpfield = new Field[10][10];
+        for(int i = 0; i < 10; i++)
+        {
+            for(int j = 0; j < 10; j++)
+            {
+                tmpfield[i][j] = Field.WATER;
+            }
+        }
+        showFields(tmpfield, otherField);
+
+        //Zweier Schiff
+        tmpfield[8][0] = Field.SHIP;
+        tmpfield[9][0] = Field.SHIP;
+
+        //dreier Schiff
+        tmpfield[3][2] = Field.SHIP;
+        tmpfield[3][3] = Field.SHIP;
+        tmpfield[3][4] = Field.SHIP;
+
+        //vierer Schiff
+        tmpfield[0][5] = Field.SHIP;
+        tmpfield[0][6] = Field.SHIP;
+        tmpfield[0][7] = Field.SHIP;
+        tmpfield[0][8] = Field.SHIP;
+
+        //fünfer Schiff
+        tmpfield[4][7] = Field.SHIP;
+        tmpfield[5][7] = Field.SHIP;
+        tmpfield[6][7] = Field.SHIP;
+        tmpfield[7][7] = Field.SHIP;
+        tmpfield[8][7] = Field.SHIP;
+
+        showFields(tmpfield, otherField);
+        return tmpfield;
+
+    }
+}
