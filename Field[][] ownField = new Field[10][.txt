@@ -1,0 +1,53 @@
+Field[][] ownField = new Field[10][10];
+        for(int i = 0; i < 10; i++)
+        {
+            for(int j = 0; j < 10; j++)
+            {
+                ownField[i][j] = Field.WATER;
+            }
+        }
+        showFields(ownField, otherField);
+        for(int k = 0; k < 4; k++)
+        {
+            Coordinate tmpStart = new Coordinate(0, 0);
+            Coordinate tmpEnd = new Coordinate(9,9);
+            if(k == 0)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 5, ownField))
+                {
+                    tmpStart = readStartCoordinate(5);
+                    tmpEnd = readEndCoordinate(5);
+                }
+                placeShip(tmpStart, tmpEnd, ownField);
+            }
+            else if(k == 1)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 4, ownField))
+                {
+                    tmpStart = readStartCoordinate(4);
+                    tmpEnd = readEndCoordinate(4);
+                }
+                placeShip(tmpStart, tmpEnd, ownField);
+            }
+            else if(k == 2)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 3, ownField))
+                {
+                    tmpStart = readStartCoordinate(3);
+                    tmpEnd = readEndCoordinate(3);
+                }
+                placeShip(tmpStart, tmpEnd, ownField);
+            }
+            else if(k == 3)
+            {
+                while(!validPosition(tmpStart, tmpEnd, 2, ownField))
+                {
+                    tmpStart = readStartCoordinate(2);
+                    tmpEnd = readEndCoordinate(2);
+                }
+                placeShip(tmpStart, tmpEnd, ownField);
+            }
+        }
+        showFields(ownField, otherField);
+        return ownField;
+    }
